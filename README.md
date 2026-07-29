@@ -1,0 +1,2 @@
+# murty
+Murty's algorithm
