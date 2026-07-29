@@ -47,7 +47,8 @@ public:
         Scalar val;
     };
 
-    constexpr SparseMatrix() : _cols(0), _row_idxs(1, 0) {}
+    constexpr SparseMatrix()
+            : _cols(0), _row_idxs(1, 0) {}
     /**
      * @brief Constructs new SparseMatrix
      *
@@ -68,6 +69,30 @@ public:
         fill_from(mat, max_per_row, max_val, comp);
     }
     /**
+     * @brief Constructs directly from standard CSR format arrays
+     * 
+     * @param cols Number of columns
+     * @param vals Span of values
+     * @param col_idxs Span of column indices for each value
+     * @param row_ptrs Span of row pointers (size = rows + 1)
+     */
+    constexpr SparseMatrix(
+            size_t cols, std::span<const Scalar> vals, std::span<const Idx> col_idxs, std::span<const Idx> row_idxs) {
+        fill_from(cols, vals, col_idxs, row_idxs);
+    }
+    /**
+     * @brief Constructs from another sparse matrix given valid rows and columns
+     * 
+     * @param source The original sparse matrix
+     * @param row_subset Allowed row indices from the source
+     * @param col_subset Allowed column indices from the source
+     */
+    constexpr SparseMatrix(
+            const SparseMatrix& src, std::span<const Idx> row_subset, std::span<const Idx> col_subset) {
+        fill_from(src, row_subset, col_subset);
+    }
+
+    /**
      * @brief Fills a sparse matrix with a dense matrix
      *
      * Extracts elements from the dense matrix based on a comparator and
@@ -87,7 +112,6 @@ public:
     constexpr void fill_from(
             const Matrix<Derived, Scalar>& mat, size_t max_per_row = std::numeric_limits<size_t>::max(),
             const Scalar& max_val = std::numeric_limits<Scalar>::max(), Comparator comp = Comparator{}) {
-
         clear();
         max_per_row = std::min(max_per_row, mat.cols());
         reserve(mat.rows(), mat.rows() * std::min(max_per_row, size_t(10)));
@@ -110,6 +134,51 @@ public:
                 auto idx = order[i];
                 if (!comp(max_val, mat(row, idx)))
                     _elems.emplace_back(idx, mat(row, idx));
+            }
+            _row_idxs.push_back(_elems.size());
+        }
+    }
+    /**
+     * @brief Fill the SparseMatrix directly from standard CSR format arrays
+     * 
+     * @param cols Number of columns
+     * @param vals Span of values
+     * @param col_idxs Span of column indices for each value
+     * @param row_ptrs Span of row pointers (size = rows + 1)
+     */
+    constexpr void fill_from(
+            size_t cols, std::span<const Scalar> vals, std::span<const Idx> col_idxs, std::span<const Idx> row_idxs) {
+        assert(vals.size() == col_idxs.size() && "Value and column indices size mismatch");
+        _cols = cols;
+        _row_idxs.assign(row_idxs.begin(), row_idxs.end());
+        _elems.clear();
+        _elems.reserve(vals.size());
+        for (size_t i = 0; i < vals.size(); i++) {
+            _elems.emplace_back(col_idxs[i], vals[i]);
+        }
+    }
+    /**
+     * @brief Fills from another sparse matrix given valid rows and columns
+     * 
+     * @param source The original sparse matrix
+     * @param row_subset Allowed row indices from the source
+     * @param col_subset Allowed column indices from the source
+     */
+    constexpr void fill_from(
+            const SparseMatrix& src, std::span<const Idx> row_subset, std::span<const Idx> col_subset) {
+        _cols = col_subset.size();
+        _elems.clear();
+        _row_idxs.assign(1, 0);
+        std::vector<Idx> col_map(src.cols(), Idx(-1));
+        for (size_t i = 0; i < col_subset.size(); i++) {
+            col_map[col_subset[i]] = static_cast<Idx>(i);
+        }
+        reserve(row_subset.size(), src.nvals());
+        for (Idx row : row_subset) {
+            for (const auto& elem : src.row_elems(row)) {
+                Idx new_col = col_map[elem.col];
+                if (new_col != Idx(-1))
+                    _elems.emplace_back(new_col, elem.val);
             }
             _row_idxs.push_back(_elems.size());
         }
@@ -188,19 +257,6 @@ public:
         _row_idxs.push_back(0);
         _elems.clear();
         _cols = 0;
-    }
-
-    /**
-     * @brief Appends row after the last row
-     * 
-     * @param row Row to be appended
-     */
-    constexpr void append_row(std::span<const Elem> row) {
-        _elems.insert(_elems.end(), row.begin(), row.end());
-        _row_idxs.push_back(_elems.size());
-        for (const auto& x : row) {
-            _cols = std::max(_cols, static_cast<size_t>(x.col + 1));
-        }
     }
 
     /**
