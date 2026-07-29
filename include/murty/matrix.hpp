@@ -57,7 +57,7 @@ template <typename Derived, typename Scalar>
 class TransposedView : public Matrix<TransposedView<Derived, Scalar>, Scalar> {
 public:
     constexpr explicit TransposedView(const Matrix<Derived, Scalar>& mat) 
-        : _mat(static_cast<const Derived&>(mat)) {}
+            : _mat(static_cast<const Derived&>(mat)) {}
 
     constexpr Scalar operator()(size_t row, size_t col) const noexcept {
         return _mat(col, row);
@@ -68,7 +68,6 @@ public:
     [[nodiscard]] constexpr size_t cols() const noexcept {
         return _mat.rows();
     }
-
 private:
     const Derived& _mat;
 };
@@ -94,7 +93,18 @@ public:
      * @param rows Number of rows
      * @param cols Number of columns
      */
-    constexpr DenseMatrix(size_t rows, size_t cols) : _data(rows * cols), _rows(rows), _cols(cols) {}
+    constexpr DenseMatrix(size_t rows, size_t cols)
+            : _data(rows * cols), _rows(rows), _cols(cols) {}
+
+    /**
+     * @brief Constructs a DenseMatrix
+     * 
+     * @param data Pointer to the flatten data (row-major)
+     * @param rows Number of rows
+     * @param cols Number of columns
+     */
+    constexpr DenseMatrix(Scalar* data, size_t rows, size_t cols)
+            : _data(data, data + rows * cols), _rows(rows), _cols(cols) {}
 
     /**
      * @brief Constructs from another arbitrarly matrix
@@ -173,12 +183,6 @@ public:
         _cols = cols;
     }
     /**
-     * @return Capacity of data buffer
-     */
-    [[nodiscard]] constexpr size_t capacity() const noexcept {
-        return _data.size();
-    }
-    /**
      * @brief Reserve capacity for the data bufer
      * 
      * @param cap Capacity to be reserved
@@ -215,28 +219,29 @@ private:
 //==========================================================================================
 
 /**
- * @brief A 2D matrix
+ * @brief A view over a DenseMatrix
  * 
  * @tparam Scalar The value type stored in the matrix
  */
 template <typename Scalar>
-class ConstDenseMatrix : public Matrix<ConstDenseMatrix<Scalar>, Scalar> {
+class DenseMatrixView : public Matrix<DenseMatrixView<Scalar>, Scalar> {
 public:
     /**
-     * @brief Constructs a ConstDenseMatrix
+     * @brief Constructs a DenseMatrixView
      * 
      * @param rows Number of rows
      * @param cols Number of columns
      */
-    constexpr ConstDenseMatrix(const Scalar* data, size_t rows, size_t cols) : _data(data), _rows(rows), _cols(cols) {}
+    constexpr DenseMatrixView(const Scalar* data, size_t rows, size_t cols)
+            : _data(data), _rows(rows), _cols(cols) {}
 
     /**
-     * @brief Constructs ConstDenseMatrix from DenseMatrix
+     * @brief Constructs DenseMatrixView from DenseMatrix
      * 
      */
-    constexpr ConstDenseMatrix(const DenseMatrix<Scalar>& mat)
+    constexpr DenseMatrixView(const DenseMatrix<Scalar>& mat)
             : _data(mat.data()), _rows(mat.rows()), _cols(mat.cols()) {}
-    constexpr ConstDenseMatrix(const DenseMatrix<Scalar>&&) = delete;
+    constexpr DenseMatrixView(const DenseMatrix<Scalar>&&) = delete;
 
     /**
      * @brief Accesses value at given row and column
@@ -274,7 +279,7 @@ public:
      * 
      * @param other The matrix to swap with
      */
-    constexpr void swap(ConstDenseMatrix& other) noexcept {
+    constexpr void swap(DenseMatrixView& other) noexcept {
         using std::swap;
         swap(_data, other._data);
         swap(_rows, other._rows);
@@ -286,7 +291,7 @@ public:
      * @param lhs The first matrix
      * @param rhs The second matrix
      */
-    friend constexpr void swap(ConstDenseMatrix& lhs, ConstDenseMatrix& rhs) noexcept {
+    friend constexpr void swap(DenseMatrixView& lhs, DenseMatrixView& rhs) noexcept {
         lhs.swap(rhs);
     }
 private:
@@ -315,8 +320,8 @@ public:
      * @param row_idxs Subset of rows to use
      * @param col_idxs Subset of columns to use
      */
-    constexpr MatrixView(const Scalar* data, size_t stride, std::vector<Idx> row_idxs, std::vector<Idx> col_idxs)
-            : _data(data), _stride(stride), _row_idxs(std::move(row_idxs)), _col_idxs(std::move(col_idxs)) {}
+    constexpr MatrixView(const Scalar* data, size_t data_cols, std::vector<Idx> row_idxs, std::vector<Idx> col_idxs)
+            : _data(data), _stride(data_cols), _row_idxs(std::move(row_idxs)), _col_idxs(std::move(col_idxs)) {}
 
     /**
      * @brief Accesses value at given row and column
@@ -388,13 +393,13 @@ public:
         return _col_idxs;
     }
     /**
-     * @return The row indices vector (moved)
+     * @return The row indices vector (rvalue)
      */
     [[nodiscard]] constexpr std::vector<Idx> take_row_idxs() && noexcept {
         return std::move(_row_idxs);
     }
     /**
-     * @return The column indices vector (moved)
+     * @return The column indices vector (rvalue)
      */
     [[nodiscard]] constexpr std::vector<Idx> take_col_idxs() && noexcept {
         return std::move(_col_idxs);
