@@ -30,7 +30,7 @@
 
 namespace murty {
 
-size_t LB_THR = 20; ///< threshold for using lower_bound to find the matched column in sparse case
+constexpr size_t LB_THR = 20;   ///< threshold for using lower_bound to find the matched column in sparse case
 
 namespace internal {
 template <typename Scalar, typename Idx>

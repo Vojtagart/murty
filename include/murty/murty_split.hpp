@@ -312,11 +312,10 @@ void split_order(const MatrixT& C, Subproblem<Scalar, Idx>& sol, SplitWorkers<Sc
                 W.u[row] = C(row, matched_col) - sol.v[matched_col];
             } else {
                 auto elems = C.row_elems(row);
-                size_t idx = std::lower_bound(elems.begin(), elems.end(), matched_col, [](const auto& elem, Idx col_) { 
-                    return elem.col < col_; 
-                }) - elems.begin();
-                assert(idx < elems.size() && elems[idx].col == matched_col && "Matched col not found");
-                W.u[row] = elems[idx].val - sol.v[matched_col];
+                auto it = elems.size() >= LB_THR ? std::ranges::lower_bound(elems, matched_col, std::less<Idx>{}, &MatrixT::Elem::col)
+                                                 : std::ranges::find(elems, matched_col, &MatrixT::Elem::col);
+                assert(it != elems.end() && it->col == matched_col && "Matched to unconnected column");
+                W.u[row] = it->val - sol.v[matched_col];
             }
             // storing slack with augmening column
             W.min_slack_miss[row] = (row == sol.rows2use.back() && !sol.allow_miss ? INF : -W.u[row]);
