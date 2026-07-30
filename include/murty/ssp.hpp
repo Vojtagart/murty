@@ -471,7 +471,7 @@ Scalar ssp_last(Subproblem<Scalar, Idx>& sol, const MatrixT& C, SSPWorkers<Scala
         auto elems = C.row_elems(row);
         if (matched_col != SolT::EMPTY) {
             auto it = elems.size() >= LB_THR ? std::ranges::lower_bound(elems, matched_col, std::less<Idx>{}, &MatrixT::Elem::col)
-                                             : std::ranges::find(elems, matched_col, std::less<Idx>{}, &MatrixT::Elem::col);
+                                             : std::ranges::find(elems, matched_col, &MatrixT::Elem::col);
             assert(it != elems.end() && it->col == matched_col && "Matched to unconnected column");
             u = it->val - sol.v[matched_col];
         }
@@ -731,7 +731,7 @@ void internal::dijkstra_row_expansion(
     auto elems = C.row_elems(row);
 
     auto it = elems.size() >= LB_THR ? std::ranges::lower_bound(elems, matched_col, std::less<Idx>{}, &MatrixT::Elem::col)
-                                     : std::ranges::find(elems, matched_col, std::less<Idx>{}, &MatrixT::Elem::col);
+                                     : std::ranges::find(elems, matched_col, &MatrixT::Elem::col);
     assert(it != elems.end() && it->col == matched_col && "Matched to unconnected column");
     Scalar u = it->val - sol.v[matched_col];
 
