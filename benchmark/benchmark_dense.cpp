@@ -11,13 +11,41 @@ struct TestCase {
 };
 
 std::vector<TestCase> tcs_single = {
-    TestCase{10, 10, 1, 100},
-    TestCase{25, 25, 1, 100},
-    TestCase{50, 50, 1, 100},
-    TestCase{100, 100, 1, 50},
-    TestCase{200, 200, 1, 25},
-    TestCase{300, 300, 1, 20},
-    TestCase{500, 500, 1, 10}
+    TestCase{3, 3, 1, 1000},
+    TestCase{10, 10, 1, 1000},
+    TestCase{25, 25, 1, 1000},
+    TestCase{50, 50, 1, 500},
+    TestCase{100, 100, 1, 100},
+    TestCase{200, 200, 1, 100},
+    TestCase{300, 300, 1, 50},
+    TestCase{500, 500, 1, 25}
+};
+
+std::vector<TestCase> tcs_k = {
+    TestCase{10, 10, 10, 100},
+    TestCase{10, 10, 30, 100},
+    TestCase{10, 10, 90, 100},
+    TestCase{10, 10, 270, 100},
+
+    TestCase{25, 25, 25, 100},
+    TestCase{25, 25, 75, 100},
+    TestCase{25, 25, 225, 100},
+    TestCase{25, 25, 675, 100},
+
+    TestCase{50, 50, 50, 40},
+    TestCase{50, 50, 150, 40},
+    TestCase{50, 50, 450, 40},
+    TestCase{50, 50, 1350, 40},
+
+    TestCase{100, 100, 100, 20},
+    TestCase{100, 100, 300, 20},
+    TestCase{100, 100, 900, 20},
+    TestCase{100, 100, 2700, 20},
+
+    TestCase{200, 200, 200, 10},
+    TestCase{200, 200, 600, 10},
+    TestCase{200, 200, 1800, 10},
+    TestCase{200, 200, 5400, 10},
 };
 
 DenseMatrixData get_dense_data(size_t rows, size_t cols, double mn, double mx) {
@@ -30,7 +58,24 @@ DenseMatrixData get_dense_data(size_t rows, size_t cols, double mn, double mx) {
     return {rows, cols, std::move(data)};
 }
 
+void compare_costs(const std::vector<double>& a, const std::vector<double>& b) {
+    if (a.size() != b.size()) {
+        std::cout << "Sizes are " << a.size() << " and " << b.size() << std::endl;
+        throw std::runtime_error("Costs sizes do not match");
+    }
+    for (size_t j = 0; j < a.size(); j++) {
+        if (std::abs(a[j] - b[j]) > 1e-6) {
+            std::cout << "Mismatch on the " << j << "-th cost, " << a[j] << " vs " << b[j] << std::endl;
+            throw std::runtime_error("Costs do not match");
+        }
+    }
+}
+
 int main() {
+
+    std::cout << "---------------------------------------------\n";
+    std::cout << " single best assignment\n";
+    std::cout << "---------------------------------------------\n";
 
     for (auto tc : tcs_single) {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << "]\n";
@@ -38,15 +83,31 @@ int main() {
         for (size_t i = 0; i < tc.num; i++) {
             auto in = get_dense_data(tc.rows, tc.cols, -1., 1.);
             auto r_murty = run_murty_single(in);
-            auto r_fastmurty = run_murty_single(in);
+            auto r_fastmurty = run_fastmurty_single(in);
             t_murty += r_murty.time_us;
             t_fastmurty += r_fastmurty.time_us;
-            if (r_murty.costs.size() != r_fastmurty.costs.size())
-                throw std::runtime_error("Costs sizes do not match");
-            for (size_t j = 0; j < r_murty.costs.size(); j++) {
-                if (std::abs(r_murty.costs[j] - r_fastmurty.costs[j]) > 1e-6)
-                    throw std::runtime_error("Costs do not match");
-            }
+            compare_costs(r_murty.costs, r_fastmurty.costs);
+        }
+        t_murty /= tc.num;
+        t_fastmurty /= tc.num;
+        std::cout << "Murty      : " << t_murty << " us\n";
+        std::cout << "Fastmurty  : " << t_fastmurty << " us\n\n";
+    }
+
+    std::cout << "---------------------------------------------\n";
+    std::cout << " K-best assigments\n";
+    std::cout << "---------------------------------------------\n";
+
+    for (auto tc : tcs_single) {
+        std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << ", K = " << tc.K << "]\n";
+        double t_murty = 0., t_fastmurty = 0.;
+        for (size_t i = 0; i < tc.num; i++) {
+            auto in = get_dense_data(tc.rows, tc.cols, -1., 1.);
+            auto r_murty = run_murty_k(in, tc.K);
+            auto r_fastmurty = run_fastmurty_k(in, tc.K);
+            t_murty += r_murty.time_us;
+            t_fastmurty += r_fastmurty.time_us;
+            compare_costs(r_murty.costs, r_fastmurty.costs);
         }
         t_murty /= tc.num;
         t_fastmurty /= tc.num;
