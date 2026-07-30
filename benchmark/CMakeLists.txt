@@ -25,7 +25,6 @@ add_library(fastmurty_dense STATIC
     ${fastmurty_SOURCE_DIR}/subproblem.c
 )
 target_include_directories(fastmurty_dense PUBLIC ${fastmurty_SOURCE_DIR})
-target_compile_definitions(fastmurty_dense PRIVATE NDEBUG)
 
 # -----------------------------------------------
 # Adding the sparse version
@@ -39,7 +38,7 @@ add_library(fastmurty_sparse STATIC
     ${fastmurty_SOURCE_DIR}/subproblem.c
 )
 target_include_directories(fastmurty_sparse PUBLIC ${fastmurty_SOURCE_DIR})
-target_compile_definitions(fastmurty_sparse PUBLIC SPARSE NDEBUG)
+target_compile_definitions(fastmurty_sparse PUBLIC SPARSE)
 
 # ===============================================
 # Adding the dense and sparse benchmarks

@@ -89,7 +89,7 @@ int main() {
     for (auto tc : tcs_single) {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << "]\n";
         double t_murty = 0., t_fastmurty = 0.;
-        std::mt19937 rng(42);
+        std::mt19937 rng(43);
         double p = sqrt(tc.cols) / tc.cols;
         for (size_t i = 0; i < tc.num; i++) {
             auto in = get_sparse_data(tc.rows, tc.cols, -1., 1., p, rng);
