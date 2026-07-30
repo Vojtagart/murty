@@ -20,6 +20,7 @@
 #include <cassert>
 #include <iostream>
 #include <cstddef>
+#include <ranges>
 
 #include "matrix.hpp"
 #include "subproblem.hpp"
@@ -28,6 +29,8 @@
 
 
 namespace murty {
+
+size_t LB_THR = 20; ///< threshold for using lower_bound to find the matched column in sparse case
 
 namespace internal {
 template <typename Scalar, typename Idx>
@@ -173,15 +176,12 @@ struct SSPContext {
  * @param sol Subproblem being initialized
  * @param C The cost matrix
  * @param W Worker buffers
- * @param max_cost Maximum allowed cost limit
  *
  * @return The total cost of the initial greedy matching
  */
 template <typename Scalar, typename Idx, typename MatrixT>
 requires (is_sparse_matrix_v<MatrixT> || is_matrix_v<MatrixT>)
-Scalar ssp_initialization(
-        Subproblem<Scalar, Idx>& sol, const MatrixT& C, SSPWorkers<Scalar, Idx>& W,
-        Scalar max_cost = std::numeric_limits<Scalar>::max());
+Scalar ssp_initialization(Subproblem<Scalar, Idx>& sol, const MatrixT& C, SSPWorkers<Scalar, Idx>& W);
 
 /**
  * @brief Finds the minimum distance column among unclosed columns
@@ -373,6 +373,11 @@ Scalar full_ssp(Subproblem<Scalar, Idx>& sol, const MatrixT& C, SSPWorkers<Scala
             sol.col4row[row] = SolT::EMPTY;
         }
     }
+    if (C.rows() == 0) {
+        for (auto col : sol.cols2use) {
+            sol.row4col[col] = SolT::EMPTY;
+        }
+    }
     if (C.rows() == 0 || C.cols() == 0)
         return base_cost < max_cost ? base_cost : INF;
 
@@ -390,7 +395,7 @@ Scalar full_ssp(Subproblem<Scalar, Idx>& sol, const MatrixT& C, SSPWorkers<Scala
         }
     }
 
-    if (internal::ssp_initialization(sol, C, W, max_cost) >= max_cost) {
+    if (internal::ssp_initialization(sol, C, W) >= max_cost) {
         if constexpr (!IS_DENSE) internal::set_range(W.col_in_use, sol.cols2use, 0, sol.max_cols());
         #ifndef NDEBUG
         for (auto col : W.col_in_use) assert(!col && "W.col_in_use wasnt fully reseted");
@@ -465,11 +470,10 @@ Scalar ssp_last(Subproblem<Scalar, Idx>& sol, const MatrixT& C, SSPWorkers<Scala
         W.cols2use.clear();
         auto elems = C.row_elems(row);
         if (matched_col != SolT::EMPTY) {
-            size_t idx = std::lower_bound(elems.begin(), elems.end(), matched_col, [](const auto& elem, Idx col_) { 
-                return elem.col < col_; 
-            }) - elems.begin();
-            assert(idx < elems.size() && elems[idx].col == matched_col && "Matched to unconnected column");
-            u = elems[idx].val - sol.v[matched_col];
+            auto it = elems.size() >= LB_THR ? std::ranges::lower_bound(elems, matched_col, std::less<Idx>{}, &MatrixT::Elem::col)
+                                             : std::ranges::find(elems, matched_col, std::less<Idx>{}, &MatrixT::Elem::col);
+            assert(it != elems.end() && it->col == matched_col && "Matched to unconnected column");
+            u = it->val - sol.v[matched_col];
         }
         for (auto col : sol.cols2use) {
             W.col_in_use[col] = true;
@@ -614,15 +618,13 @@ Scalar ssp_last(Subproblem<Scalar, Idx>& sol, const MatrixT& C, SSPWorkers<Scala
 
 template <typename Scalar, typename Idx, typename MatrixT>
 requires (is_sparse_matrix_v<MatrixT> || is_matrix_v<MatrixT>)
-Scalar internal::ssp_initialization(Subproblem<Scalar, Idx>& sol, const MatrixT& C, SSPWorkers<Scalar, Idx>& W, Scalar max_cost) {
+Scalar internal::ssp_initialization(Subproblem<Scalar, Idx>& sol, const MatrixT& C, SSPWorkers<Scalar, Idx>& W) {
     constexpr bool IS_DENSE = is_matrix_v<MatrixT>;
     using SolT = Subproblem<Scalar, Idx>;
 
     Scalar cost = 0;
 
-    for (size_t i = sol.rows(); i > 0;) {
-        --i;
-        Idx row = sol.rows2use[i];
+    for (Idx row : std::views::reverse(sol.rows2use)) {
         Scalar min_slack = 0; // 0 to augmenting col
         Idx min_col = SolT::EMPTY;
 
@@ -651,11 +653,8 @@ Scalar internal::ssp_initialization(Subproblem<Scalar, Idx>& sol, const MatrixT&
         // row can be matched to unmatched column, its augmenting column is also unmatched
         if (min_col == SolT::EMPTY || sol.row4col[min_col] == SolT::UNMATCHED) {
             sol.col4row[row] = min_col;
-            if (min_col != SolT::EMPTY) {
+            if (min_col != SolT::EMPTY)
                 sol.row4col[min_col] = row;
-                cost += min_slack;
-                if (cost >= max_cost) return std::numeric_limits<Scalar>::max();
-            }
         // row unmatched, push it to rows2use
         } else {
             W.rows2use.push_back(row);
@@ -727,13 +726,13 @@ void internal::dijkstra_row_expansion(
         const MatrixT& C, SSPWorkers<Scalar, Idx>& W) {
 
     using SolT = Subproblem<Scalar, Idx>;
-    
     auto elems = C.row_elems(row);
-    size_t idx = std::lower_bound(elems.begin(), elems.end(), matched_col, [](const auto& elem, Idx col_) { 
-        return elem.col < col_; 
-    }) - elems.begin();
-    assert(idx < elems.size() && elems[idx].col == matched_col && "Matched to unconnected column");
-    Scalar u = elems[idx].val - sol.v[matched_col];
+
+    auto it = elems.size() >= LB_THR ? std::ranges::lower_bound(elems, matched_col, std::less<Idx>{}, &MatrixT::Elem::col)
+                                     : std::ranges::find(elems, matched_col, std::less<Idx>{}, &MatrixT::Elem::col);
+    assert(it != elems.end() && it->col == matched_col && "Matched to unconnected column");
+    Scalar u = it->val - sol.v[matched_col];
+
     const Scalar update_cost = -u + cx.cost;
     // update shortest path to aug. columns
     if (cx.allow_miss && update_cost < cx.miss_cost) {
@@ -863,7 +862,7 @@ Scalar internal::dijkstra_full(
             }
         }
     }
-    // reduction u for the column i should be initialized to min(C_ij) accross all j
+    // reduction u for the row i should be initialized to min(C_ij) accross all j
     // to make the reduced cost matrix non-negative if there are some negative values
     // in the original cost matrix. However, we can initialize it implicitely. This
     // can make the paths found via dijkstra negative, but since it is a constant added to

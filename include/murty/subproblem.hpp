@@ -40,17 +40,16 @@ struct Subproblem {
     constexpr static const Idx EMPTY = -Idx(2);
 
     size_t matrix_idx;
-    
-    std::vector<Idx> rows2use, cols2use;        ///< List of rows/cols considered by this subproblem
-    std::vector<Scalar> v;                      ///< Column dual variables
-    std::vector<Idx> col4row, row4col;          ///< Matched counterparts or EMPTY/UNMATCHED
-    std::vector<uint8_t> banned_cols;           ///< Bans applies only to the last row
-    
     Scalar cur_cost;                            ///< Current cost of (partial) solution stored
     #ifndef NDEBUG
     Scalar base_cost = 0;                       ///< Base cost of the subproblem, used for debugging
     #endif
     bool allow_miss;                            ///< Whether to allow miss for the last row
+    
+    std::vector<Idx> rows2use, cols2use;        ///< List of rows/cols considered by this subproblem
+    std::vector<Scalar> v;                      ///< Column dual variables
+    std::vector<Idx> col4row, row4col;          ///< Matched counterparts or EMPTY/UNMATCHED
+    std::vector<uint8_t> banned_cols;           ///< Bans applies only to the last row
 
     /**
      * @brief Initializes a subproblem
@@ -62,8 +61,8 @@ struct Subproblem {
      * @param cur_cost Initial cost of the subproblem
      */
     constexpr Subproblem(size_t matrix_idx, size_t rows, size_t cols, bool allow_miss = true, Scalar cur_cost = 0)
-            : matrix_idx(matrix_idx), v(cols, 0), col4row(rows, UNMATCHED), row4col(cols, UNMATCHED),
-              banned_cols(cols, false), cur_cost(cur_cost), allow_miss(allow_miss) {
+            : matrix_idx(matrix_idx), cur_cost(cur_cost), allow_miss(allow_miss), v(cols, 0),
+              col4row(rows, UNMATCHED), row4col(cols, UNMATCHED), banned_cols(cols, false) {
         rows2use.reserve(rows);
         cols2use.reserve(cols);
     }

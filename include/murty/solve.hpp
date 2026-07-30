@@ -138,10 +138,10 @@ struct MurtyWorkers {
 template <typename Scalar, typename Idx=int>
 using MatVariant = std::variant<
     DenseMatrix<Scalar>,
-    ConstDenseMatrix<Scalar>,
+    DenseMatrixView<Scalar>,
     MatrixView<Scalar, Idx>,
     TransposedView<DenseMatrix<Scalar>, Scalar>,
-    TransposedView<ConstDenseMatrix<Scalar>, Scalar>,
+    TransposedView<DenseMatrixView<Scalar>, Scalar>,
     TransposedView<MatrixView<Scalar, Idx>, Scalar>,
     SparseMatrix<Scalar, Idx>,
     SparseMatrixView<Scalar, Idx>
