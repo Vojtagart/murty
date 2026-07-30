@@ -1,0 +1,16 @@
+[build-system]
+requires = ["scikit-build-core>=0.5.0", "pybind11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "murty"
+version = "0.1.0"
+description = "Efficient and well scaling implementation of Murty's algorithm"
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.20.0"
+]
+
+[tool.scikit-build]
+cmake.args = ["-DMURTY_BUILD_PYTHON_BINDINGS=ON"]
+wheel.packages = ["bindings/python/murty"]
