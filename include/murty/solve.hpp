@@ -322,6 +322,11 @@ requires (is_matrix_v<MatrixT> || is_sparse_matrix_v<MatrixT> || std::is_same_v<
 std::pair<std::vector<Assignment<Scalar, Idx>>, std::vector<Idx>> solve(
         std::span<const MatrixT> CS, size_t K, MurtyWorkers<Scalar, Idx>& W, std::span<const Scalar> base_costs, Scalar max_cost) {
     constexpr bool is_variant = std::is_same_v<MatrixT, MatVariant<Scalar, Idx>>;
+
+    auto dispatch = []<typename F>(const MatrixT& mat, F&& f) {
+        if constexpr (is_variant) return std::visit(std::forward<F>(f), mat);
+        else return f(mat);
+    };
     
     bool has_base = !base_costs.empty();
     if (has_base && base_costs.size() != CS.size())
@@ -337,13 +342,8 @@ std::pair<std::vector<Assignment<Scalar, Idx>>, std::vector<Idx>> solve(
     size_t max_rows = 0;
     size_t max_cols = 0;
     for (const auto& C : CS) {
-        if constexpr (is_variant) {
-            max_rows = std::max(max_rows, std::visit([](const auto& m){return m.rows();}, C));
-            max_cols = std::max(max_cols, std::visit([](const auto& m){return m.cols();}, C));
-        } else {
-            max_rows = std::max(max_rows, C.rows());
-            max_cols = std::max(max_cols, C.cols());
-        }
+        max_rows = std::max(max_rows, dispatch(C, [](const auto& m){return m.rows();}));
+        max_cols = std::max(max_cols, dispatch(C, [](const auto& m){return m.cols();}));
     }
 
     W.resize(K, max_rows, max_cols);
@@ -357,15 +357,8 @@ std::pair<std::vector<Assignment<Scalar, Idx>>, std::vector<Idx>> solve(
     auto* wsol = &(W.sols.back()); 
     for (size_t i = 0; i < CS.size(); i++) {
         const auto& C = CS[i];
-
-        size_t rows = 0, cols = 0;
-        if constexpr (is_variant) {
-            rows = std::visit([](const auto& m) {return m.rows();}, C);
-            cols = std::visit([](const auto& m) {return m.cols();}, C);
-        } else {
-            rows = C.rows();
-            cols = C.cols();
-        }
+        size_t rows = dispatch(C, [](const auto& m){return m.rows();});
+        size_t cols = dispatch(C, [](const auto& m){return m.cols();});
 
         wsol->rows2use.resize(rows);
         std::iota(wsol->rows2use.begin(), wsol->rows2use.end(), 0);
@@ -380,12 +373,7 @@ std::pair<std::vector<Assignment<Scalar, Idx>>, std::vector<Idx>> solve(
         wsol->base_cost = base;
         #endif
 
-        Scalar cost = 0;
-        if constexpr (is_variant)
-            cost = std::visit([&](const auto& m) {return full_ssp(*wsol, m, W.ssp_w, max_cost, base);}, C);
-        else
-            cost = full_ssp(*wsol, C, W.ssp_w, max_cost, base);
-
+        Scalar cost = dispatch(C, [&](const auto& m){return full_ssp(*wsol, m, W.ssp_w, max_cost, base);});
         if (cost >= max_cost) continue;
 
         auto* tmp = W.q.max();
@@ -409,12 +397,8 @@ std::pair<std::vector<Assignment<Scalar, Idx>>, std::vector<Idx>> solve(
         }
         ass.emplace_back(*best_sol, rows, cols);
         idxs.push_back(best_sol->matrix_idx);
-
         if (W.q.empty()) break;
-        if constexpr (is_variant)
-            std::visit([&](const auto& m){murty_split(m, *wsol, *best_sol, W.q, W.split_w, W.ssp_w);}, CS[best_sol->matrix_idx]);
-        else
-            murty_split(CS[best_sol->matrix_idx], *wsol, *best_sol, W.q, W.split_w, W.ssp_w);
+        dispatch(CS[best_sol->matrix_idx], [&](const auto& m){murty_split(m, *wsol, *best_sol, W.q, W.split_w, W.ssp_w);});
     }
     return ret;
 }
@@ -484,8 +468,7 @@ std::vector<Assignment<Scalar, Idx>> solve_subsets(
         wsol->base_cost = base;
         #endif
 
-        Scalar cost = 0;
-        cost = full_ssp(*wsol, C, W.ssp_w, max_cost, base);
+        Scalar cost = full_ssp(*wsol, C, W.ssp_w, max_cost, base);
         if (cost >= max_cost) continue;
 
         auto* tmp = W.q.max();
