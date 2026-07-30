@@ -48,13 +48,23 @@ std::vector<TestCase> tcs_k = {
     TestCase{200, 200, 5400, 10},
 };
 
-DenseMatrixData get_dense_data(size_t rows, size_t cols, double mn, double mx, std::mt19937& rng) {
+SparseMatrixData get_sparse_data(size_t rows, size_t cols, double mn, double mx, double p, std::mt19937& rng) {
     auto dist = std::uniform_real_distribution<double>(mn, mx);
-    std::vector<double> data(rows * cols);
-    for (size_t i = 0; i < rows * cols; i++) {
-        data[i] = dist(rng);
+    auto flip = std::uniform_real_distribution<double>(0., 1.);
+    std::vector<int> row_idxs = {0};
+    std::vector<int> col_idxs;
+    std::vector<double> vals;
+    for (size_t i = 0; i < rows; i++) {
+        for (size_t j = 0; j < cols; j++) {
+            double fl = flip(rng);
+            if (fl < p) {
+                vals.push_back(dist(rng));
+                col_idxs.push_back(j);
+            }
+        }
+        row_idxs.push_back(vals.size());
     }
-    return {rows, cols, std::move(data)};
+    return {rows, cols, std::move(row_idxs), std::move(col_idxs), std::move(vals)};
 }
 
 void compare_costs(const std::vector<double>& a, const std::vector<double>& b) {
@@ -80,8 +90,9 @@ int main() {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << "]\n";
         double t_murty = 0., t_fastmurty = 0.;
         std::mt19937 rng(42);
+        double p = sqrt(tc.rows);
         for (size_t i = 0; i < tc.num; i++) {
-            auto in = get_dense_data(tc.rows, tc.cols, -1., 1., rng);
+            auto in = get_sparse_data(tc.rows, tc.cols, -1., 1., p, rng);
             auto r_murty = run_murty_single(in);
             auto r_fastmurty = run_fastmurty_single(in);
             t_murty += r_murty.time_us;
@@ -102,8 +113,9 @@ int main() {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << ", K = " << tc.K << "]\n";
         double t_murty = 0., t_fastmurty = 0.;
         std::mt19937 rng(42);
+        double p = sqrt(tc.rows);
         for (size_t i = 0; i < tc.num; i++) {
-            auto in = get_dense_data(tc.rows, tc.cols, -1., 1., rng);
+            auto in = get_sparse_data(tc.rows, tc.cols, -1., 1., p, rng);
             auto r_murty = run_murty_k(in, tc.K);
             auto r_fastmurty = run_fastmurty_k(in, tc.K);
             t_murty += r_murty.time_us;

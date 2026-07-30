@@ -24,13 +24,87 @@ struct DenseMatrixData {
     std::vector<double> data;
 };
 
+struct SparseMatrixData {
+    size_t rows = 0;
+    size_t cols = 0;
+    std::vector<int> row_idxs;
+    std::vector<int> col_idxs;
+    std::vector<double> vals;
+};
+
 struct BenchmarkResult {
     double time_us = 0.;
     std::vector<double> costs;
 };
 
 #ifdef SPARSE
-// TODO
+
+SMatrix data_to_sparse(const SparseMatrixData& data) {
+    return SMatrix(data.cols, data.vals, data.col_idxs, data.row_idxs);
+}
+
+cs_di_sparse data_to_sparse_fm(const SparseMatrixData& data) {
+    cs_di_sparse c_sparse;
+    c_sparse.m = static_cast<int>(data.rows);
+    c_sparse.n = static_cast<int>(data.cols);
+    c_sparse.nz = static_cast<int>(data.vals.size());
+    c_sparse.nzmax = static_cast<int>(data.vals.size());
+    c_sparse.p = const_cast<int*>(data.row_idxs.data());
+    c_sparse.i = const_cast<int*>(data.col_idxs.data());
+    c_sparse.x = const_cast<double*>(data.vals.data());
+    return c_sparse;
+}
+
+BenchmarkResult run_murty_single(const SparseMatrixData& in) {
+    murty::MurtyWorkers<double, int> W(1, in.rows, in.cols);
+    auto C = data_to_sparse(in);
+    auto start = std::chrono::high_resolution_clock::now();
+    auto result = murty::assignment<double, int, SMatrix>(C, W);
+    auto end = std::chrono::high_resolution_clock::now();
+    double total = std::chrono::duration<double, std::micro>(end - start).count();
+    return {total, {result.cost}};
+}
+
+BenchmarkResult run_murty_k(const SparseMatrixData& in, size_t K) {
+    murty::MurtyWorkers<double, int> W(K, in.rows, in.cols);
+    auto C = data_to_sparse(in);
+    std::span<const SMatrix> C_span(&C, 1);
+    auto start = std::chrono::high_resolution_clock::now();
+    auto [asss, idxs] = murty::solve<double, int, SMatrix>(C_span, K, W);
+    auto end = std::chrono::high_resolution_clock::now();
+    double total = std::chrono::duration<double, std::micro>(end - start).count();
+    std::vector<double> costs;
+    for (const auto& ass : asss) {
+        costs.push_back(ass.cost);
+    }
+    return {total, std::move(costs)};
+}
+
+BenchmarkResult run_fastmurty_k(const SparseMatrixData& in, size_t K) {
+    WorkvarsforDA workvars = allocateWorkvarsforDA(static_cast<int>(in.rows), static_cast<int>(in.cols), static_cast<int>(K));
+    std::vector<unsigned char> row_priors(in.rows, 1);
+    std::vector<unsigned char> col_priors(in.cols, 1);
+    std::vector<int> out_assocs(K * (in.rows + in.cols) * 2, 0);
+    std::vector<double> out_costs(K, 0.);
+    double weight = 0.0;
+    cs_di_sparse C = data_to_sparse_fm(in);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    da(C, 1, (bool*)row_priors.data(), &weight, 1, (bool*)col_priors.data(), &weight, 
+       static_cast<int>(K), out_assocs.data(), out_costs.data(), &workvars);
+    auto end = std::chrono::high_resolution_clock::now();
+    double total = std::chrono::duration<double, std::micro>(end - start).count();
+    deallocateWorkvarsforDA(workvars);
+    while (!out_costs.empty() && out_costs.back() >= 1e9) {
+        out_costs.pop_back();
+    }
+    return {total, std::move(out_costs)};
+}
+
+BenchmarkResult run_fastmurty_single(const SparseMatrixData& in) {
+    return run_fastmurty_k(in, 1);
+}
+
 #else
 
 DMatrixV data_to_dense(const DenseMatrixData& data) {
@@ -87,8 +161,5 @@ BenchmarkResult run_fastmurty_single(const DenseMatrixData& in) {
 }
 
 #endif
-
-
-
 
 }
