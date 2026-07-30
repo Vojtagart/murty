@@ -653,8 +653,10 @@ Scalar internal::ssp_initialization(Subproblem<Scalar, Idx>& sol, const MatrixT&
         // row can be matched to unmatched column, its augmenting column is also unmatched
         if (min_col == SolT::EMPTY || sol.row4col[min_col] == SolT::UNMATCHED) {
             sol.col4row[row] = min_col;
-            if (min_col != SolT::EMPTY)
+            if (min_col != SolT::EMPTY) {
                 sol.row4col[min_col] = row;
+                cost += min_slack;
+            }
         // row unmatched, push it to rows2use
         } else {
             W.rows2use.push_back(row);
