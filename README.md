@@ -1,8 +1,8 @@
 # Murty
 
-A high-performance implementation of Murty's algorithm for finding the K-best solutions to the linear assignment problem. Note that the reported solutions may left some of the rows or columns unassigned with the cost of zero. To prevent that, simply subtract $\max(c_{ij}) + 1$ from all the elements of the cost matrix $c$
+A high-performance implementation of Murty's algorithm for finding the K-best solutions to the linear assignment problem.
 
-It provides a header-only C++20 backend and a Python frontend bound via `pybind11` and managed by `scikit-build-core`.
+Note that the reported solutions may leave some of the rows or columns unassigned with the cost of zero. To prevent that, simply subtract $\max(c_{ij}) + 1$ from all the elements of the cost matrix $c$. Shifting all elements to negative values makes assigning a pair strictly better than leaving it unassigned at the cost of $0$.
 
 ## Project Structure
 
@@ -53,7 +53,7 @@ Because the core library is header-only, it does not require compilation. You ca
 include(FetchContent)
 FetchContent_Declare(
     murty
-    GIT_REPOSITORY [https://github.com/Vojtagart/murty.git](https://github.com/Vojtagart/murty.git)
+    GIT_REPOSITORY https://github.com/Vojtagart/murty.git
     GIT_TAG        main
 )
 FetchContent_MakeAvailable(murty)
@@ -87,6 +87,8 @@ results = murty.murty(C, K=3)
 for i, assignment in enumerate(results):
     print(f"Rank {i+1} Cost: {assignment.cost}")
 ```
+
+For additional examples, refer to `tests/python/`
 
 ### C++ Usage
 
@@ -142,3 +144,18 @@ The benchmarking suite automatically downloads fastmurty, compiles it into a sta
 # Execute the benchmark suite
 ./scripts/run_benchmarks.sh build
 ```
+
+# Sources
+
+[1] MOTRO, Michael. Fastmurty: Murty’s Algorithm C Implementation [online]. 2019. [visited on 2026-03-05]. Available from: https://github.com/motrom/fastmurty/tree/master.
+
+[2] MOTRO, Michael; GHOSH, Joydeep. Scaling Data Association for Hypothesis-Oriented MHT. In: 2019 22nd International Conference on Information Fusion (FUSION). Ottawa, ON, Canada: IEEE, 2019, pp. 1–8. Available from doi: 10.23919/FUSION43075.2019.9011203.
+
+[3] MILLER, Michael L.; STONE, Harold S.; COX, Ingemar J. Optimizing Murty’s Ranked Assignment Method. IEEE Transactions on Aerospace and Electronic Systems. 1997, vol. 33, no. 3, pp. 851–862. Available from doi: 10.1109/7.599256.
+
+[4] CROUSE, David F. On Implementing 2D Rectangular Assignment Algorithms. IEEE Transactions on Aerospace and Electronic Systems. 2016, vol. 52, no. 4, pp. 1679–1696. Available from doi: 10.1109/TAES.2016.140952.
+
+[5] JONKER, Roy; VOLGENANT, Anton. A Shortest Augmenting Path Algorithm for Dense and Sparse Linear Assignment Problems. Computing. 1987, vol. 38, no. 4, pp. 325–340. Available from doi: 10.1007/BF02278710.
+
+[6] MURTY, Katta G. An Algorithm for Ranking All the Assignments in Order of Increasing Cost. Operations Research. 1968, vol. 16, no. 3, pp. 682687. Available from doi: 10.1287/opre.16.3.682
+
