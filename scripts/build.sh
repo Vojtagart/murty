@@ -13,7 +13,8 @@ echo "=================================================="
 cmake -B "${BUILD_DIR}" \
     -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
     -DMURTY_BUILD_BENCHMARKS=ON \
-    -DMURTY_BUILD_TESTS=ON
+    -DMURTY_BUILD_TESTS=ON \
+    -DMURTY_BUILD_EXPERIMENTS=ON
 
 echo ""
 echo "=================================================="

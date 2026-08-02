@@ -12,6 +12,7 @@ target_compile_features(murty INTERFACE cxx_std_20)
 option(MURTY_BUILD_TESTS "Build correctness tests" OFF)
 option(MURTY_BUILD_BENCHMARKS "Build benchmarks against other versions" OFF)
 option(MURTY_BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
+option(MURTY_BUILD_EXPERIMENTS "Build experiments" OFF)
 
 if(MURTY_BUILD_PYTHON_BINDINGS)
     add_subdirectory(bindings)
@@ -24,4 +25,8 @@ endif()
 
 if(MURTY_BUILD_BENCHMARKS)
     add_subdirectory(benchmark)
+endif()
+
+if(MURTY_BUILD_EXPERIMENTS)
+    add_subdirectory(experiments)
 endif()
