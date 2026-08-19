@@ -168,5 +168,4 @@ dmypy.json
 .vscode/
 
 # Concrete files anf folders
-
-fastmurty
+*.csv

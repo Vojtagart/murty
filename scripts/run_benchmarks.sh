@@ -5,6 +5,7 @@ BUILD_DIR=${1:-"build"}
 
 DENSE_BIN="${BUILD_DIR}/benchmark/benchmark_dense"
 SPARSE_BIN="${BUILD_DIR}/benchmark/benchmark_sparse"
+DENSE_SPARSE_BIN="${BUILD_DIR}/benchmark/benchmark_dense_sparse"
 
 if [ ! -d "${BUILD_DIR}" ]; then
     echo "[ERROR] Build directory '${BUILD_DIR}' does not exist. Run 'scripts/build.sh' first."
@@ -28,5 +29,15 @@ if [ -f "${SPARSE_BIN}" ]; then
     "${SPARSE_BIN}"
 else
     echo "[ERROR] Executable '${SPARSE_BIN}' not found."
+    exit 1
+fi
+
+echo "=================================================="
+echo " Running Dense vs Sparse Benchmark"
+echo "=================================================="
+if [ -f "${DENSE_SPARSE_BIN}" ]; then
+    "${DENSE_SPARSE_BIN}"
+else
+    echo "[ERROR] Executable '${DENSE_SPARSE_BIN}' not found."
     exit 1
 fi
