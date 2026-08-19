@@ -1,7 +1,9 @@
 #include <iostream>
 #include <iomanip>
 #include <random>
-#include "benchmark_wrappers.hpp"
+#define SPARSE
+#define FASTMURTY
+#include "benchmark_helpers.hpp"
 
 using namespace murty::benchmark;
 
@@ -55,11 +57,14 @@ SparseMatrixData get_sparse_data(size_t rows, size_t cols, double mn, double mx,
     std::vector<int> col_idxs;
     std::vector<double> vals;
     for (size_t i = 0; i < rows; i++) {
+        bool ins = false;
         for (size_t j = 0; j < cols; j++) {
             double fl = flip(rng);
-            if (fl < p) {
+            // Keeping atleast 1 element per row since fastmurty segfaults with empty rows
+            if (fl < p || (!ins && j == cols - 1)) {
                 vals.push_back(dist(rng));
                 col_idxs.push_back(j);
+                ins = true;
             }
         }
         row_idxs.push_back(vals.size());
@@ -67,20 +72,10 @@ SparseMatrixData get_sparse_data(size_t rows, size_t cols, double mn, double mx,
     return {rows, cols, std::move(row_idxs), std::move(col_idxs), std::move(vals)};
 }
 
-void compare_costs(const std::vector<double>& a, const std::vector<double>& b) {
-    if (a.size() != b.size()) {
-        std::cout << "Sizes are " << a.size() << " and " << b.size() << std::endl;
-        throw std::runtime_error("Costs sizes do not match");
-    }
-    for (size_t j = 0; j < a.size(); j++) {
-        if (std::abs(a[j] - b[j]) > 1e-6) {
-            std::cout << "Mismatch on the " << j << "-th cost, " << a[j] << " vs " << b[j] << std::endl;
-            throw std::runtime_error("Costs do not match");
-        }
-    }
-}
 
 int main() {
+    CSVWriter csv("benchmark_sparse.csv");
+    murty::MurtyWorkers<double, int> W;
 
     std::cout << "---------------------------------------------\n";
     std::cout << " single best assignment\n";
@@ -89,11 +84,11 @@ int main() {
     for (auto tc : tcs_single) {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << "]\n";
         double t_murty = 0., t_fastmurty = 0.;
-        std::mt19937 rng(43);
-        double p = sqrt(tc.cols) / tc.cols;
+        std::mt19937 rng(42);
+        double p = 20. / tc.cols;
         for (size_t i = 0; i < tc.num; i++) {
             auto in = get_sparse_data(tc.rows, tc.cols, -1., 1., p, rng);
-            auto r_murty = run_murty_single(in);
+            auto r_murty = run_murty_single(in, W);
             auto r_fastmurty = run_fastmurty_single(in);
             t_murty += r_murty.time_us;
             t_fastmurty += r_fastmurty.time_us;
@@ -103,6 +98,8 @@ int main() {
         t_fastmurty /= tc.num;
         std::cout << "Murty      : " << t_murty << " us\n";
         std::cout << "Fastmurty  : " << t_fastmurty << " us\n\n";
+        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Murty", t_murty);
+        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Fastmurty", t_fastmurty);
     }
 
     std::cout << "---------------------------------------------\n";
@@ -113,10 +110,10 @@ int main() {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << ", K = " << tc.K << "]\n";
         double t_murty = 0., t_fastmurty = 0.;
         std::mt19937 rng(42);
-        double p = sqrt(tc.cols) / tc.cols;
+        double p = 20. / tc.cols;
         for (size_t i = 0; i < tc.num; i++) {
             auto in = get_sparse_data(tc.rows, tc.cols, -1., 1., p, rng);
-            auto r_murty = run_murty_k(in, tc.K);
+            auto r_murty = run_murty_k(in, tc.K, W);
             auto r_fastmurty = run_fastmurty_k(in, tc.K);
             t_murty += r_murty.time_us;
             t_fastmurty += r_fastmurty.time_us;
@@ -126,5 +123,7 @@ int main() {
         t_fastmurty /= tc.num;
         std::cout << "Murty      : " << t_murty << " us\n";
         std::cout << "Fastmurty  : " << t_fastmurty << " us\n\n";
+        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Murty", t_murty);
+        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Fastmurty", t_fastmurty);
     }
 }

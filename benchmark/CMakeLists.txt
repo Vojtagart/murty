@@ -59,3 +59,11 @@ target_link_libraries(benchmark_dense PRIVATE murty fastmurty_dense)
 add_executable(benchmark_sparse benchmark_sparse.cpp)
 target_compile_features(benchmark_sparse PRIVATE cxx_std_20)
 target_link_libraries(benchmark_sparse PRIVATE murty fastmurty_sparse)
+
+# -----------------------------------------------
+# Dense vs Sparse
+# -----------------------------------------------
+
+add_executable(benchmark_dense_sparse benchmark_dense_sparse.cpp)
+target_compile_features(benchmark_dense_sparse PRIVATE cxx_std_20)
+target_link_libraries(benchmark_dense_sparse PRIVATE murty)

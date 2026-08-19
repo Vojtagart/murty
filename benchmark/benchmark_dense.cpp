@@ -1,7 +1,8 @@
 #include <iostream>
 #include <iomanip>
 #include <random>
-#include "benchmark_wrappers.hpp"
+#define FASTMURTY
+#include "benchmark_helpers.hpp"
 
 using namespace murty::benchmark;
 
@@ -57,20 +58,9 @@ DenseMatrixData get_dense_data(size_t rows, size_t cols, double mn, double mx, s
     return {rows, cols, std::move(data)};
 }
 
-void compare_costs(const std::vector<double>& a, const std::vector<double>& b) {
-    if (a.size() != b.size()) {
-        std::cout << "Sizes are " << a.size() << " and " << b.size() << std::endl;
-        throw std::runtime_error("Costs sizes do not match");
-    }
-    for (size_t j = 0; j < a.size(); j++) {
-        if (std::abs(a[j] - b[j]) > 1e-6) {
-            std::cout << "Mismatch on the " << j << "-th cost, " << a[j] << " vs " << b[j] << std::endl;
-            throw std::runtime_error("Costs do not match");
-        }
-    }
-}
-
 int main() {
+    CSVWriter csv("benchmark_dense.csv");
+    murty::MurtyWorkers<double, int> W;
 
     std::cout << "---------------------------------------------\n";
     std::cout << " single best assignment\n";
@@ -82,7 +72,7 @@ int main() {
         std::mt19937 rng(42);
         for (size_t i = 0; i < tc.num; i++) {
             auto in = get_dense_data(tc.rows, tc.cols, -1., 1., rng);
-            auto r_murty = run_murty_single(in);
+            auto r_murty = run_murty_single(in, W);
             auto r_fastmurty = run_fastmurty_single(in);
             t_murty += r_murty.time_us;
             t_fastmurty += r_fastmurty.time_us;
@@ -92,6 +82,8 @@ int main() {
         t_fastmurty /= tc.num;
         std::cout << "Murty      : " << t_murty << " us\n";
         std::cout << "Fastmurty  : " << t_fastmurty << " us\n\n";
+        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Murty", t_murty);
+        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Fastmurty", t_fastmurty);
     }
 
     std::cout << "---------------------------------------------\n";
@@ -104,7 +96,7 @@ int main() {
         std::mt19937 rng(42);
         for (size_t i = 0; i < tc.num; i++) {
             auto in = get_dense_data(tc.rows, tc.cols, -1., 1., rng);
-            auto r_murty = run_murty_k(in, tc.K);
+            auto r_murty = run_murty_k(in, tc.K, W);
             auto r_fastmurty = run_fastmurty_k(in, tc.K);
             t_murty += r_murty.time_us;
             t_fastmurty += r_fastmurty.time_us;
@@ -114,5 +106,7 @@ int main() {
         t_fastmurty /= tc.num;
         std::cout << "Murty      : " << t_murty << " us\n";
         std::cout << "Fastmurty  : " << t_fastmurty << " us\n\n";
+        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Murty", t_murty);
+        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Fastmurty", t_fastmurty);
     }
 }
