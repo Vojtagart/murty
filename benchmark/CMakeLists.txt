@@ -48,7 +48,9 @@ target_compile_definitions(fastmurty_sparse PUBLIC SPARSE)
 # Dense
 # -----------------------------------------------
 
-add_executable(benchmark_dense benchmark_dense.cpp)
+set(TCL_SOURCES "3rd_party_code/TrackerComponentLibrary/ShortestPathCPP.cpp")
+
+add_executable(benchmark_dense benchmark_dense.cpp ${TCL_SOURCES})
 target_compile_features(benchmark_dense PRIVATE cxx_std_20)
 target_link_libraries(benchmark_dense PRIVATE murty fastmurty_dense)
 

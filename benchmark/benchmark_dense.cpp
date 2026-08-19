@@ -2,10 +2,13 @@
 #include <iomanip>
 #include <random>
 #define FASTMURTY
+#define TCL_MURTY
+#define FBAEUERLEIN_MURTY
 #include "benchmark_helpers.hpp"
 
 using namespace murty::benchmark;
 
+constexpr bool VALIDATE = true;
 
 struct TestCase {
     size_t rows = 0, cols = 0, K = 0, num = 0;
@@ -68,22 +71,22 @@ int main() {
 
     for (auto tc : tcs_single) {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << "]\n";
-        double t_murty = 0., t_fastmurty = 0.;
+
+        std::vector<Procedure<DenseMatrixData>> prods = {
+            {"Murty",       0., [&W](const DenseMatrixData& in, size_t K) -> BenchmarkResult {return run_murty_single(data_to_dense(in), W);}},
+            {"Fastmurty",   0.,   [](const DenseMatrixData& in, size_t K) -> BenchmarkResult {return run_fastmurty_single(in);}},
+            {"Tcl",         0.,   [](const DenseMatrixData& in, size_t K) -> BenchmarkResult {return run_tcl_murty_k(in, 1);}}
+        };
+
         std::mt19937 rng(42);
         for (size_t i = 0; i < tc.num; i++) {
-            auto in = get_dense_data(tc.rows, tc.cols, -1., 1., rng);
-            auto r_murty = run_murty_single(in, W);
-            auto r_fastmurty = run_fastmurty_single(in);
-            t_murty += r_murty.time_us;
-            t_fastmurty += r_fastmurty.time_us;
-            compare_costs(r_murty.costs, r_fastmurty.costs);
+            auto in = get_dense_data(tc.rows, tc.cols, -2., -1., rng);
+            run_procedures(prods, in, 1, VALIDATE);
         }
-        t_murty /= tc.num;
-        t_fastmurty /= tc.num;
-        std::cout << "Murty      : " << t_murty << " us\n";
-        std::cout << "Fastmurty  : " << t_fastmurty << " us\n\n";
-        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Murty", t_murty);
-        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Fastmurty", t_fastmurty);
+        report_procedures(prods, tc.num, [&csv, &tc](const std::string& name, double avg_time){
+            csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, name, avg_time);
+        });
+        std::cout << std::endl;
     }
 
     std::cout << "---------------------------------------------\n";
@@ -92,21 +95,21 @@ int main() {
 
     for (auto tc : tcs_k) {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << ", K = " << tc.K << "]\n";
-        double t_murty = 0., t_fastmurty = 0.;
+
+        std::vector<Procedure<DenseMatrixData>> prods = {
+            {"Murty",       0., [&W](const DenseMatrixData& in, size_t K) -> BenchmarkResult {return run_murty_k(data_to_dense(in), K, W);}},
+            {"Fastmurty",   0.,   [](const DenseMatrixData& in, size_t K) -> BenchmarkResult {return run_fastmurty_k(in, K);}},
+            {"Tcl",         0.,   [](const DenseMatrixData& in, size_t K) -> BenchmarkResult {return run_tcl_murty_k(in, K);}}
+        };
+
         std::mt19937 rng(42);
         for (size_t i = 0; i < tc.num; i++) {
-            auto in = get_dense_data(tc.rows, tc.cols, -1., 1., rng);
-            auto r_murty = run_murty_k(in, tc.K, W);
-            auto r_fastmurty = run_fastmurty_k(in, tc.K);
-            t_murty += r_murty.time_us;
-            t_fastmurty += r_fastmurty.time_us;
-            compare_costs(r_murty.costs, r_fastmurty.costs);
+            auto in = get_dense_data(tc.rows, tc.cols, -2., -1., rng);
+            run_procedures(prods, in, tc.K, VALIDATE);
         }
-        t_murty /= tc.num;
-        t_fastmurty /= tc.num;
-        std::cout << "Murty      : " << t_murty << " us\n";
-        std::cout << "Fastmurty  : " << t_fastmurty << " us\n\n";
-        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Murty", t_murty);
-        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Fastmurty", t_fastmurty);
+        report_procedures(prods, tc.num, [&csv, &tc](const std::string& name, double avg_time){
+            csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, name, avg_time);
+        });
+        std::cout << std::endl;
     }
 }

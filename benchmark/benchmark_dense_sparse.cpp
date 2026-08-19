@@ -58,9 +58,24 @@ DMatrix get_random_matrix(size_t rows, size_t cols, double mn, double mx, std::m
     return ret;
 }
 
+struct InData {
+    DMatrix C;
+    SMatrix SC;
+};
+
+BenchmarkResult run_sparsification(const DMatrix& C, SMatrix& SC) {
+    SC.reserve(C.rows(), C.rows() * SPARSITY);
+    auto start_sc = std::chrono::high_resolution_clock::now();
+    SC.fill_from(C, SPARSITY);
+    auto end_sc = std::chrono::high_resolution_clock::now();
+    double total = std::chrono::duration<double, std::micro>(end_sc - start_sc).count();
+    return {total, {}};
+}
+
 int main() {
     CSVWriter csv("benchmark_dense_sparse.csv");
     murty::MurtyWorkers<double, int> W;
+    SMatrix SCW;
 
     std::cout << "---------------------------------------------\n";
     std::cout << " single best assignment\n";
@@ -68,29 +83,24 @@ int main() {
 
     for (auto tc : tcs_single) {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << "]\n";
-        double t_dense = 0., t_sparse = 0., t_sparse_mat = 0.;
+
+        std::vector<Procedure<InData>> prods = {
+            {"Dense",          0.,    [&W](const InData& in, size_t K) -> BenchmarkResult {return run_murty_single(in.C, W);}},
+            {"Sparse",         0.,    [&W](const InData& in, size_t K) -> BenchmarkResult {return run_murty_single(in.SC, W);}},
+            {"Sparsification", 0.,  [&SCW](const InData& in, size_t K) -> BenchmarkResult {return run_sparsification(in.C, SCW);}}
+        };
+
         std::mt19937 rng(42);
         for (size_t i = 0; i < tc.num; i++) {
             DMatrix C = get_random_matrix(tc.rows, tc.cols, -1, 1, rng);
             SMatrix SC(C, SPARSITY);
-            auto r_dense = run_murty_single(C, W);
-            auto r_sparse = run_murty_single(SC, W);
-            t_dense += r_dense.time_us;
-            t_sparse += r_sparse.time_us;
-            auto start_sc = std::chrono::high_resolution_clock::now();
-            SC.fill_from(C, SPARSITY);
-            auto end_sc = std::chrono::high_resolution_clock::now();
-            t_sparse_mat += std::chrono::duration<double, std::micro>(end_sc - start_sc).count();
+            InData in{C, SC};
+            run_procedures(prods, in, 1, false);
         }
-        t_dense /= tc.num;
-        t_sparse /= tc.num;
-        t_sparse_mat /= tc.num;
-        std::cout << "Dense        : " << t_dense << " us\n";
-        std::cout << "Sparse       : " << t_sparse << " us\n";
-        std::cout << "Sparsifying  : " << t_sparse_mat << " us\n\n";
-        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Dense", t_dense);
-        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Sparse", t_sparse);
-        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Sparsifying", t_sparse_mat);
+        report_procedures(prods, tc.num, [&csv, &tc](const std::string& name, double avg_time){
+            csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, name, avg_time);
+        });
+        std::cout << std::endl;
     }
 
     std::cout << "---------------------------------------------\n";
@@ -99,28 +109,23 @@ int main() {
 
     for (auto tc : tcs_k) {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << ", K = " << tc.K << "]\n";
-        double t_dense = 0., t_sparse = 0., t_sparse_mat = 0.;
+
+        std::vector<Procedure<InData>> prods = {
+            {"Dense",          0.,    [&W](const InData& in, size_t K) -> BenchmarkResult {return run_murty_k(in.C, K, W);}},
+            {"Sparse",         0.,    [&W](const InData& in, size_t K) -> BenchmarkResult {return run_murty_k(in.SC, K, W);}},
+            {"Sparsification", 0.,  [&SCW](const InData& in, size_t K) -> BenchmarkResult {return run_sparsification(in.C, SCW);}}
+        };
+
         std::mt19937 rng(42);
         for (size_t i = 0; i < tc.num; i++) {
             DMatrix C = get_random_matrix(tc.rows, tc.cols, -1, 1, rng);
             SMatrix SC(C, SPARSITY);
-            auto r_dense = run_murty_k(C, tc.K, W);
-            auto r_sparse = run_murty_k(C, tc.K, W);
-            t_dense += r_dense.time_us;
-            t_sparse += r_sparse.time_us;
-            auto start_sc = std::chrono::high_resolution_clock::now();
-            SC.fill_from(C, SPARSITY);
-            auto end_sc = std::chrono::high_resolution_clock::now();
-            t_sparse_mat += std::chrono::duration<double, std::micro>(end_sc - start_sc).count();
+            InData in{C, SC};
+            run_procedures(prods, in, tc.K, false);
         }
-        t_dense /= tc.num;
-        t_sparse /= tc.num;
-        t_sparse_mat /= tc.num;
-        std::cout << "Dense        : " << t_dense << " us\n";
-        std::cout << "Sparse       : " << t_sparse << " us\n";
-        std::cout << "Sparsifying  : " << t_sparse_mat << " us\n\n";
-        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Dense", t_dense);
-        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Sparse", t_sparse);
-        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Sparsifying", t_sparse_mat);
+        report_procedures(prods, tc.num, [&csv, &tc](const std::string& name, double avg_time){
+            csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, name, avg_time);
+        });
+        std::cout << std::endl;
     }
 }

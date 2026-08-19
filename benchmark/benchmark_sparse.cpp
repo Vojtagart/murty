@@ -1,7 +1,6 @@
 #include <iostream>
 #include <iomanip>
 #include <random>
-#define SPARSE
 #define FASTMURTY
 #include "benchmark_helpers.hpp"
 
@@ -83,23 +82,22 @@ int main() {
 
     for (auto tc : tcs_single) {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << "]\n";
-        double t_murty = 0., t_fastmurty = 0.;
+
+        std::vector<Procedure<SparseMatrixData>> prods = {
+            {"Murty",     0., [&W](const SparseMatrixData& in, size_t K) -> BenchmarkResult {return run_murty_single(data_to_sparse(in), W);}},
+            {"Fastmurty", 0.,   [](const SparseMatrixData& in, size_t K) -> BenchmarkResult {return run_fastmurty_single(in);}}
+        };
+        
         std::mt19937 rng(42);
         double p = 20. / tc.cols;
         for (size_t i = 0; i < tc.num; i++) {
             auto in = get_sparse_data(tc.rows, tc.cols, -1., 1., p, rng);
-            auto r_murty = run_murty_single(in, W);
-            auto r_fastmurty = run_fastmurty_single(in);
-            t_murty += r_murty.time_us;
-            t_fastmurty += r_fastmurty.time_us;
-            compare_costs(r_murty.costs, r_fastmurty.costs);
+            run_procedures(prods, in);
         }
-        t_murty /= tc.num;
-        t_fastmurty /= tc.num;
-        std::cout << "Murty      : " << t_murty << " us\n";
-        std::cout << "Fastmurty  : " << t_fastmurty << " us\n\n";
-        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Murty", t_murty);
-        csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, "Fastmurty", t_fastmurty);
+        report_procedures(prods, tc.num, [&csv, &tc](const std::string& name, double avg_time){
+            csv.write_row("single", tc.rows, tc.cols, tc.K, tc.num, name, avg_time);
+        });
+        std::cout << std::endl;
     }
 
     std::cout << "---------------------------------------------\n";
@@ -108,22 +106,21 @@ int main() {
 
     for (auto tc : tcs_k) {
         std::cout << "[ROWS = " << tc.rows << ", COLS = " << tc.cols << ", K = " << tc.K << "]\n";
-        double t_murty = 0., t_fastmurty = 0.;
+
+        std::vector<Procedure<SparseMatrixData>> prods = {
+            {"Murty",     0., [&W](const SparseMatrixData& in, size_t K) -> BenchmarkResult {return run_murty_k(data_to_sparse(in), K, W);}},
+            {"Fastmurty", 0.,   [](const SparseMatrixData& in, size_t K) -> BenchmarkResult {return run_fastmurty_k(in, K);}}
+        };
+
         std::mt19937 rng(42);
         double p = 20. / tc.cols;
         for (size_t i = 0; i < tc.num; i++) {
             auto in = get_sparse_data(tc.rows, tc.cols, -1., 1., p, rng);
-            auto r_murty = run_murty_k(in, tc.K, W);
-            auto r_fastmurty = run_fastmurty_k(in, tc.K);
-            t_murty += r_murty.time_us;
-            t_fastmurty += r_fastmurty.time_us;
-            compare_costs(r_murty.costs, r_fastmurty.costs);
+            run_procedures(prods, in, tc.K);
         }
-        t_murty /= tc.num;
-        t_fastmurty /= tc.num;
-        std::cout << "Murty      : " << t_murty << " us\n";
-        std::cout << "Fastmurty  : " << t_fastmurty << " us\n\n";
-        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Murty", t_murty);
-        csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, "Fastmurty", t_fastmurty);
+        report_procedures(prods, tc.num, [&csv, &tc](const std::string& name, double avg_time){
+            csv.write_row("k_best", tc.rows, tc.cols, tc.K, tc.num, name, avg_time);
+        });
+        std::cout << std::endl;
     }
 }
